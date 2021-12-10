@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: machine-ip
+  labels:
+    app: machine-ip
+spec:
+  replicas: 3
+  template:
+    metadata:
+      name: machine-ip
+      labels:
+        app: machine-ip
+    spec:
+      volumes:
+      - name: demo-volume
+        emptyDir: {}
+      containers:
+        - name: machine-ip1
+          image: ramgudla/machine-ip:0.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+          - mountPath: /demo1
+            name: demo-volume
+        - name: machine-ip2
+          image: nginx
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+          - mountPath: /demo2
+            name: demo-volume
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: machine-ip

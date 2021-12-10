@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    run: shared-pid
+  name: shared-pid
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: shared-pid
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        run: shared-pid
+    spec:
+      shareProcessNamespace: true
+      containers:
+      - image: ramgudla/shared_process
+        name: shared-pid
+        imagePullPolicy: IfNotPresent
+      - image: busybox
+        name: shell
+        command: ["/bin/sh"]
+        args: ["-c", "while true; do sleep 100;echo 'tamilhce testing the shared_pipe'; done"]
+status: {}

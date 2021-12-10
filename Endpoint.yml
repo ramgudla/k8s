@@ -1,0 +1,10 @@
+kind: "Endpoints"
+apiVersion: "v1"
+metadata:
+  name: "external-web"
+subsets:
+  - addresses:
+      - ip: "10.1.1.108" # The IP Address of the external web server
+    ports:
+      - port: 8080
+        name: "apache"

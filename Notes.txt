@@ -1,0 +1,190 @@
+1. pom.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.1.2.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>in.ramgudla.k8s</groupId>
+    <artifactId>machine-ip</artifactId>
+    <version>0.0.1</version>
+    <name>machine-ip</name>
+    <description>Demo project for Spring Boot</description>
+
+    <properties>
+        <java.version>1.8</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+
+2. MachineIpApplication.java
+package com.k8s;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class MachineIpApplication {
+
+    public static void main(final String[] args) {
+        SpringApplication.run(MachineIpApplication.class, args);
+    }
+
+}
+
+3. IpController.java
+package com.k8s;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
+@RestController
+public class IpController {
+
+    @GetMapping(path = "/ip")
+    public ResponseModel getIp() throws UnknownHostException {
+        InetAddress inetAddress = InetAddress.getLocalHost();
+        return new ResponseModel(inetAddress.getHostAddress(), inetAddress.getHostName());
+    }
+
+    private class ResponseModel {
+        private final String ip;
+        private final String hostname;
+
+        public ResponseModel(final String ip, final String hostname) {
+            this.ip = ip;
+            this.hostname = hostname;
+        }
+
+        public String getIp() {
+            return ip;
+        }
+
+        public String getHostname() {
+            return hostname;
+        }
+    }
+}
+
+4. Dockerfile
+FROM openjdk:8-jdk-alpine
+COPY target/machine-ip-0.0.1.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java","-jar","/app.jar"]
+
+docker build -t ramgudla/machine-ip:0.0.1 .
+
+docker run -p 8080:8080 -t ramgudla/machine-ip:0.0.1
+
+5. Deployment.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: machine-ip
+  labels:
+    app: machine-ip
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: machine-ip
+      labels:
+        app: machine-ip
+    spec:
+      containers:
+        - name: machine-ip
+          image: ramgudla/machine-ip:0.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: machine-ip
+
+kubectl create -f Deployment.yml
+
+6. Service.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: machine-ip-service
+spec:
+  selector:
+    app: machine-ip
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: LoadBalancer
+
+  kubectl create -f Service.yml
+
+  kubectl scale --replicas=5 deployment/machine-ip
+
+7. Client.sh
+#!/bin/sh
+
+for i in {1..10}
+do
+   response=$(curl -sb -H "Accept: application/json" "http://localhost:8080/ip")
+   echo ${response}
+done
+
+8. -- create ingress controller: creates Ingress Controller pod in 'ingress-nginx' namespace.
+      kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v0.47.0/deploy/static/provider/cloud/deploy.yaml
+      
+9. Ingress.yml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+  namespace: default
+  name: my-ip-ingress
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /ip
+            pathType: Prefix
+            backend:
+               service:
+                 name: machine-ip-service
+                 port:
+                   number: 8080
+
+   -- create an ingress resource: resources can be created in any namespace. these resources will get configured in the Ingress Controller pod.
+      kubectl create -f Ingress.yml
+      
+   -- delete an ingress resource?
+      kubectl delete ingress my-ip-ingress
+      
+   -- contents of nginx conf   
+      kubectl exec -it -n ingress-nginx ingress-nginx-controller-57cb5bf694-lbnww cat /etc/nginx/nginx.conf
